@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.*?>
+<?import javafx.scene.effect.ColorAdjust?>
+<?import javafx.scene.effect.DropShadow?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.paint.Color?>
+<?import javafx.scene.text.*?>
+<AnchorPane xmlns:fx="http://javafx.com/fxml/1" fx:id="anchorPane" minHeight="-Infinity" minWidth="-Infinity"
+            prefHeight="600.0" prefWidth="800.0" style="-fx-background-color: lightgrey;"
+            xmlns="http://javafx.com/javafx/15.0.1" fx:controller="fedoseew.project.app.UI.Desktop.MainController">
+    <ImageView fitHeight="606.0" fitWidth="800.0" layoutX="1.0" layoutY="-3.0" pickOnBounds="true">
+        <Image url="@background.jpg"/>
+    </ImageView>
+    <Label fx:id="label" alignment="CENTER" layoutX="251.0" layoutY="10.0" prefHeight="47.0" prefWidth="298.0"
+           text="Image Recognition App" textAlignment="CENTER" textFill="WHITE">
+        <font>
+            <Font name="Consolas Bold" size="23.0"/>
+        </font>
+        <cursor>
+            <Cursor fx:constant="HAND"/>
+        </cursor>
+        <effect>
+            <DropShadow height="11.47" radius="5.235" spread="1.0" width="11.47">
+                <color>
+                    <Color red="0.25882354378700256" green="0.3764705955982208" blue="0.5333333611488342"/>
+                </color>
+            </DropShadow>
+        </effect>
+    </Label>
+    <Button fx:id="closeBtn" blendMode="HARD_LIGHT" layoutX="750.0" layoutY="7.0" mnemonicParsing="false"
+            prefHeight="34.0" prefWidth="42.0" text="✘" textAlignment="CENTER">
+        <font>
+            <Font name="System Bold" size="18.0"/>
+        </font>
+        <cursor>
+            <Cursor fx:constant="HAND"/>
+        </cursor>
+        <effect>
+            <ColorAdjust brightness="-0.07" contrast="0.19" hue="-0.02" saturation="0.69"/>
+        </effect>
+    </Button>
+    <VBox layoutX="595.0" layoutY="90.0" prefHeight="426.0" prefWidth="186.0"
+          style="-fx-background-color: #344765; -fx-border-radius: 30px; -fx-border-color: black; -fx-background-radius: 30;">
+        <effect>
+            <DropShadow/>
+        </effect>
+    </VBox>
+    <Slider fx:id="alphaScroll" blendMode="DIFFERENCE" blockIncrement="5.0" layoutX="620.0" layoutY="173.0"
+            majorTickUnit="19.0" max="99.0" min="1.0" minorTickCount="9" showTickLabels="true" value="1.0"/>
+    <Slider fx:id="bettaScroll" blendMode="DIFFERENCE" blockIncrement="5.0" layoutX="620.0" layoutY="279.0"
+            majorTickUnit="19.0" min="1.0" minorTickCount="10" showTickLabels="true" value="1.0"/>
+    <Slider fx:id="gammaScroll" blendMode="DIFFERENCE" blockIncrement="4.0" layoutX="620.0" layoutY="382.0"
+            majorTickUnit="19.0" min="1.0" minorTickCount="10" showTickLabels="true" value="1.0"/>
+    <TextField fx:id="alphaField" alignment="CENTER" blendMode="COLOR_BURN" editable="false" layoutX="660.0"
+               layoutY="210.0" prefHeight="18.0" prefWidth="63.0" promptText="alpha">
+        <font>
+            <Font name="System Italic" size="12.0"/>
+        </font>
+        <cursor>
+            <Cursor fx:constant="DEFAULT"/>
+        </cursor>
+    </TextField>
+    <TextField fx:id="bettaField" alignment="CENTER" blendMode="COLOR_BURN" editable="false" layoutX="660.0"
+               layoutY="315.0" prefHeight="18.0" prefWidth="63.0" promptText="betta">
+        <font>
+            <Font name="System Italic" size="12.0"/>
+        </font>
+        <cursor>
+            <Cursor fx:constant="DEFAULT"/>
+        </cursor>
+    </TextField>
+    <TextField fx:id="gammaField" alignment="CENTER" blendMode="COLOR_BURN" editable="false" layoutX="660.0"
+               layoutY="419.0" prefHeight="18.0" prefWidth="63.0" promptText="gamma">
+        <font>
+            <Font name="System Italic" size="12.0"/>
+        </font>
+        <cursor>
+            <Cursor fx:constant="DEFAULT"/>
+        </cursor>
+    </TextField>
+    <Label alignment="CENTER" blendMode="COLOR_DODGE" contentDisplay="CENTER" layoutX="660.0" layoutY="148.0"
+           prefHeight="18.0" prefWidth="63.0" text="Alpha" textAlignment="CENTER" textFill="#fefcfd">
+        <font>
+            <Font name="Book Antiqua Bold" size="14.0"/>
+        </font>
+    </Label>
+    <Label alignment="CENTER" layoutX="622.0" layoutY="90.0" prefHeight="47.0" prefWidth="140.0" text="Settings"
+           textAlignment="CENTER" textFill="#fefcfd">
+        <font>
+            <Font name="Bell MT Bold" size="22.0"/>
+        </font>
+    </Label>
+    <Label alignment="CENTER" contentDisplay="CENTER" layoutX="660.0" layoutY="256.0" prefHeight="18.0" prefWidth="63.0"
+           text="Betta" textAlignment="CENTER" textFill="#fefcfd">
+        <font>
+            <Font name="Book Antiqua Bold" size="14.0"/>
+        </font>
+    </Label>
+    <Label layoutX="670.0" layoutY="359.0" prefHeight="18.0" prefWidth="63.0" text="Gamma" textFill="#fefcfd">
+        <font>
+            <Font name="Book Antiqua Bold" size="14.0"/>
+        </font>
+    </Label>
+    <Button fx:id="go" alignment="CENTER" defaultButton="true" layoutX="334.0" layoutY="538.0" mnemonicParsing="false"
+            prefHeight="47.0" prefWidth="130.0"
+            style="-fx-background-radius: 30; -fx-background-color: #425c81; -fx-border-radius: 30;" text="GO"
+            textAlignment="CENTER" textFill="#fefcfd">
+        <font>
+            <Font name="Georgia Bold" size="24.0"/>
+        </font>
+        <cursor>
+            <Cursor fx:constant="HAND"/>
+        </cursor>
+    </Button>
+    <GridPane fx:id="grid" gridLinesVisible="true" layoutX="25.0" layoutY="87.0" minHeight="-Infinity"
+              minWidth="-Infinity" nodeOrientation="LEFT_TO_RIGHT" prefHeight="426.0" prefWidth="549.0"
+              style="-fx-background-color: #425c81; -fx-border-color: white;">
+        <columnConstraints>
+            <ColumnConstraints fillWidth="false" halignment="CENTER" hgrow="ALWAYS" maxWidth="-Infinity" minWidth="10.0"
+                               prefWidth="100.0"/>
+        </columnConstraints>
+        <rowConstraints>
+            <RowConstraints maxHeight="-Infinity" minHeight="10.0" prefHeight="100.0" vgrow="SOMETIMES"/>
+        </rowConstraints>
+        <cursor>
+            <Cursor fx:constant="HAND"/>
+        </cursor>
+    </GridPane>
+    <TextField fx:id="minMetric" alignment="CENTER" blendMode="DIFFERENCE" layoutX="639.0" layoutY="475.0"
+               prefHeight="26.0" prefWidth="107.0" promptText="min metric" text="0.5">
+        <font>
+            <Font name="System Italic" size="12.0"/>
+        </font>
+        <cursor>
+            <Cursor fx:constant="TEXT"/>
+        </cursor>
+    </TextField>
+    <Separator blendMode="HARD_LIGHT" layoutX="594.0" layoutY="131.0" prefHeight="2.0" prefWidth="186.0"
+               style="-fx-background-color: white;"/>
+    <Separator blendMode="HARD_LIGHT" layoutX="594.0" layoutY="461.0" prefHeight="2.0" prefWidth="186.0"
+               style="-fx-background-color: white;"/>
+</AnchorPane>

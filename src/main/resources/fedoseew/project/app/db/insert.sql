@@ -1,0 +1,101 @@
+--init source for 0--
+
+    --FALSE--
+INSERT INTO source_zero VALUES ('0000000000000000000000000', false);
+INSERT INTO source_zero VALUES ('1111111111111111111111111', false);
+
+    --TRUE--
+
+
+--init source for 1--
+
+    --FALSE--
+INSERT INTO source_one VALUES ('0000000000000000000000000', false);
+INSERT INTO source_one VALUES ('1111111111111111111111111', false);
+INSERT INTO source_one VALUES ('1000001000001000001000001', false);
+INSERT INTO source_one VALUES ('1000100000000000000010001', false);
+INSERT INTO source_one VALUES ('0001111000100010000001110', false);
+INSERT INTO source_one VALUES ('0010010011000000010011000', false);
+INSERT INTO source_one VALUES ('1010100000000000011011100', false);
+
+
+    --TRUE--
+INSERT INTO source_one VALUES ('0100011000010000100001000', true);
+INSERT INTO source_one VALUES ('0001000110010100001000010', true);
+INSERT INTO source_one VALUES ('0010001100101000010000100', true);
+INSERT INTO source_one VALUES ('0000100011000010000100001', true);
+INSERT INTO source_one VALUES ('0001000110000100001000010', true);
+INSERT INTO source_one VALUES ('0010001100001000010000100', true);
+INSERT INTO source_one VALUES ('0000100011001010000100001', true);
+
+--init source for 2--
+
+    --FALSE--
+INSERT INTO source_two VALUES ('0000000000000000000000000', false);
+INSERT INTO source_two VALUES ('1111111111111111111111111', false);
+
+    --TRUE--
+
+
+--init source for 3--
+
+    --FALSE--
+INSERT INTO source_three VALUES ('0000000000000000000000000', false);
+INSERT INTO source_three VALUES ('1111111111111111111111111', false);
+
+    --TRUE--
+
+
+--init source for 4--
+
+    --FALSE--
+INSERT INTO source_four VALUES ('0000000000000000000000000', false);
+INSERT INTO source_four VALUES ('1111111111111111111111111', false);
+
+    --TRUE--
+
+
+--init source for 5--
+
+    --FALSE--
+INSERT INTO source_five VALUES ('0000000000000000000000000', false);
+INSERT INTO source_five VALUES ('1111111111111111111111111', false);
+
+    --TRUE--
+
+
+--init source for 6--
+
+    --FALSE--
+INSERT INTO source_six VALUES ('0000000000000000000000000', false);
+INSERT INTO source_six VALUES ('1111111111111111111111111', false);
+
+    --TRUE--
+
+
+--init source for 7--
+
+    --FALSE--
+INSERT INTO source_seven VALUES ('0000000000000000000000000', false);
+INSERT INTO source_seven VALUES ('1111111111111111111111111', false);
+
+    --TRUE--
+
+
+--init source for 8--
+
+    --FALSE--
+INSERT INTO source_eight VALUES ('0000000000000000000000000', false);
+INSERT INTO source_eight VALUES ('1111111111111111111111111', false);
+
+    --TRUE--
+
+
+--init source for 9--
+
+    --FALSE--
+INSERT INTO source_nine VALUES ('0000000000000000000000000', false);
+INSERT INTO source_nine VALUES ('1111111111111111111111111', false);
+
+    --TRUE--
+
