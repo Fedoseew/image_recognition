@@ -1,4 +1,4 @@
-package fedoseew.project.app.Logic;
+package fedoseew.project.app.Logic.model;
 
 import org.apache.commons.math3.util.CombinatoricsUtils;
 
@@ -8,14 +8,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-class TransitionMatrixForIndices {
+public class TransitionMatrixForIndices {
     private final int Xi;
     private final int Xj;
 
     private final List<List<Integer>> transitionMatrix;
 
     public TransitionMatrixForIndices(int Xi, int Xj) {
-
         transitionMatrix = new ArrayList<>(2);
 
         transitionMatrix.add(0, new ArrayList<>(2));

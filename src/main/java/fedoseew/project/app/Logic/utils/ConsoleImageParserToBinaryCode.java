@@ -1,4 +1,4 @@
-package fedoseew.project.app.Logic;
+package fedoseew.project.app.Logic.utils;
 
 import java.io.BufferedWriter;
 import java.io.IOException;

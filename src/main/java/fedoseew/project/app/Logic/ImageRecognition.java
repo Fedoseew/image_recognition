@@ -3,6 +3,12 @@ package fedoseew.project.app.Logic;
 import fedoseew.project.app.Configurations.ApplicationConfiguration;
 import fedoseew.project.app.Database.DB_TABLES;
 import fedoseew.project.app.Database.DatabaseUtils;
+import fedoseew.project.app.Logic.model.I0_Y;
+import fedoseew.project.app.Logic.model.TransitionMatrix;
+import fedoseew.project.app.Logic.model.TransitionMatrixForComplexIndices;
+import fedoseew.project.app.Logic.model.TransitionMatrixForIndices;
+import fedoseew.project.app.Logic.utils.BinaryCodeComparator;
+import fedoseew.project.app.Logic.utils.ComplexIndGenerator;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -68,6 +74,10 @@ public class ImageRecognition {
      * @throws SQLException выкидывается при ошибках соединения или работы с БД.
      */
     private void smartRecognition(int alpha, int betta, int gamma, double minMetric) throws SQLException {
+        // Будем кешировать значения колонок source и isTrue для каждой из таблиц:
+        Map<Integer, List<String>> sourcesDataCache = new TreeMap<>();
+        Map<Integer, List<String>> isTrueDataCache = new TreeMap<>();
+
         AtomicReference<ResultSet> resultSet = new AtomicReference<>();
         /* Все матрицы переходов: */
         List<List<TransitionMatrix>> allTransitionMatrices = new ArrayList<>();
@@ -87,6 +97,8 @@ public class ImageRecognition {
             while (resultSet.get().next()) {
                 sourceColumnData.add(resultSet.get().getString(1));
                 isTrueColumnData.add(resultSet.get().getString(2));
+                sourcesDataCache.put(countOfQuery, sourceColumnData);
+                isTrueDataCache.put(countOfQuery, isTrueColumnData);
             }
             /* Цикл по колонкам таблицы: */
             for (
@@ -101,19 +113,16 @@ public class ImageRecognition {
                 /* Массив количества переходов элементов, где индексы идут в следующем соотвествии:
                 0->0, 0->1, 1->0, 1->1 : */
                 List<Integer> countOfTransitionElement = Arrays.asList(0, 0, 0, 0);
-                StringBuilder indicesBuilder = new StringBuilder();
 
+                StringBuilder indicesBuilder = new StringBuilder();
                 /* Цикл по строкам: */
-                for (
-                        int sourceRowIndex = 0, isTrueRowIndex = 0;
-                        sourceRowIndex < sourceColumnData.size() && isTrueRowIndex < isTrueColumnData.size();
-                        sourceRowIndex++, isTrueRowIndex++
-                ) {
+                for (int sourceRowIndex = 0, isTrueRowIndex = 0;
+                     sourceRowIndex < sourceColumnData.size() && isTrueRowIndex < isTrueColumnData.size();
+                     sourceRowIndex++, isTrueRowIndex++) {
                     /* Проверки на соответствие элемента числу 0 или 1 и во что он переходит: */
                     try {
                         indicesBuilder.append(sourceColumnData.get(sourceRowIndex).charAt(columnIndex));
-                        checkTransition(isTrueColumnData, countOfTransitionElement, isTrueRowIndex,
-                                sourceColumnData, sourceRowIndex, columnIndex);
+                        checkTransition(isTrueColumnData, countOfTransitionElement, isTrueRowIndex, sourceColumnData, sourceRowIndex, columnIndex);
                     } catch (IndexOutOfBoundsException ignored) {
                     }
                 }
@@ -148,11 +157,14 @@ public class ImageRecognition {
         // Кластеризация признаков:
         clustering(clusters, metrics, minMetric, informative);
 
-        // Сложные признаки (key -> число, value -> (key -> номер признака, value -> alias ("Xi|Xj))):
-        Map<Integer, Map<Integer, String>> complexIndices = new TreeMap<>();
+        // Сложные признаки (key -> число, value -> (key -> alias ("Xi|Xj), value - бинарный кортеж сложного признака)):
+        Map<Integer, Map<String, String>> complexIndices = new TreeMap<>();
 
-        // Формирование и фильтрация по параметру betta сложных признаков:
-        createComplexIndices(complexIndices, clusters, betta, metrics);
+        // Формирование сложных признаков:
+        createComplexIndices(complexIndices, clusters, metrics, indices);
+
+        // Фильтрация сложных признаков по параметру betta:
+        filteringComplexIndicesByBetta(complexIndices, isTrueDataCache, betta);
 
         // TODO: Переход в новое пространство признаков (параметр gamma):
     }
@@ -188,6 +200,36 @@ public class ImageRecognition {
                 int tmp = countOfTransitionElement.get(3) + 1;
                 countOfTransitionElement.set(3, tmp);
             }
+        }
+    }
+
+    /**
+     * Проверка во что переходит сложный признак
+     */
+    private void checkTransitionForComplexIndices(List<String> isTrueForNumberData, String indValue, List<Integer> countOfTransitionElement) {
+        for (int chInd = 0, isTrueColumnInd = 0; chInd < indValue.length(); chInd += 3, isTrueColumnInd++) {
+            String value = "" + indValue.charAt(chInd) + indValue.charAt(chInd + 1);
+            int tmpCount = 0;
+            int ind = 0;
+            switch (value) {
+                case "00":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? countOfTransitionElement.get(0) + 1 : countOfTransitionElement.get(4) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 0 : 4;
+                    break;
+                case "01":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? countOfTransitionElement.get(1) + 1 : countOfTransitionElement.get(5) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 1 : 5;
+                    break;
+                case "10":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? countOfTransitionElement.get(2) + 1 : countOfTransitionElement.get(6) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 2 : 6;
+                    break;
+                case "11":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? countOfTransitionElement.get(3) + 1 : countOfTransitionElement.get(7) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 3 : 7;
+                    break;
+            }
+            countOfTransitionElement.set(ind, tmpCount);
         }
     }
 
@@ -230,52 +272,50 @@ public class ImageRecognition {
         StringBuilder columnsBuilder = new StringBuilder();
         informative.forEach(tableInformative -> {
             metrics.put(ref.countOfNumber, new ArrayList<>());
-            tableInformative.forEach((column1, informativeOfColumn1) -> {
-                tableInformative.forEach((column2, informativeOfColumn2) -> {
-                    if (!column1.equals(column2)) {
-                        // Проверка на дубликаты (HINT: признак X1X2 == X2X1):
-                        AtomicBoolean duplicates = new AtomicBoolean(false);
-                        metrics.forEach((key, value) -> value.forEach(x -> {
-                            boolean conditional = x.containsKey("X" + column1 + "|" + "X" + column2)
-                                    || x.containsKey("X" + column2 + "|" + "X" + column1);
-                            if (conditional) {
-                                duplicates.set(true);
-                            }
-                        }));
+            tableInformative.forEach((column1, informativeOfColumn1) -> tableInformative.forEach((column2, informativeOfColumn2) -> {
+                if (!column1.equals(column2)) {
+                    // Проверка на дубликаты (HINT: признак X1X2 == X2X1):
+                    AtomicBoolean duplicates = new AtomicBoolean(false);
+                    metrics.forEach((key, value) -> value.forEach(x -> {
+                        boolean conditional = x.containsKey("X" + column1 + "|" + "X" + column2)
+                                || x.containsKey("X" + column2 + "|" + "X" + column1);
+                        if (conditional) {
+                            duplicates.set(true);
+                        }
+                    }));
 
-                        if (!duplicates.get()) {
-                            // Расчёт по формуле, добавление в map с метриками и формирование сложных признаков:
-                            columnsBuilder.append("X").append(column1).append("|X").append(column2);
-                            TransitionMatrixForIndices transitionMatrix = new TransitionMatrixForIndices(column1, column2);
-                            String firstSource = indices.get(ref.countOfNumber).get(column1);
-                            String secondSource = indices.get(ref.countOfNumber).get(column2);
-                            for (int i = 0; i < firstSource.length(); i++) {
-                                if (firstSource.charAt(i) == '0') {
-                                    if (secondSource.charAt(i) == '0') {
-                                        int old = transitionMatrix.getTransitionMatrix().get(0).get(0);
-                                        transitionMatrix.getTransitionMatrix().get(0).set(0, old + 1);
-                                    } else if (secondSource.charAt(i) == '1') {
-                                        int old = transitionMatrix.getTransitionMatrix().get(0).get(1);
-                                        transitionMatrix.getTransitionMatrix().get(0).set(1, old + 1);
-                                    }
-                                } else if (firstSource.charAt(i) == '1') {
-                                    if (secondSource.charAt(i) == '0') {
-                                        int old = transitionMatrix.getTransitionMatrix().get(1).get(0);
-                                        transitionMatrix.getTransitionMatrix().get(1).set(0, old + 1);
-                                    } else if (secondSource.charAt(i) == '1') {
-                                        int old = transitionMatrix.getTransitionMatrix().get(1).get(1);
-                                        transitionMatrix.getTransitionMatrix().get(1).set(1, old + 1);
-                                    }
+                    if (!duplicates.get()) {
+                        // Расчёт по формуле, добавление в map с метриками и формирование сложных признаков:
+                        columnsBuilder.append("X").append(column1).append("|X").append(column2);
+                        TransitionMatrixForIndices transitionMatrix = new TransitionMatrixForIndices(column1, column2);
+                        String firstSource = indices.get(ref.countOfNumber).get(column1);
+                        String secondSource = indices.get(ref.countOfNumber).get(column2);
+                        for (int i = 0; i < firstSource.length(); i++) {
+                            if (firstSource.charAt(i) == '0') {
+                                if (secondSource.charAt(i) == '0') {
+                                    int old = transitionMatrix.getTransitionMatrix().get(0).get(0);
+                                    transitionMatrix.getTransitionMatrix().get(0).set(0, old + 1);
+                                } else if (secondSource.charAt(i) == '1') {
+                                    int old = transitionMatrix.getTransitionMatrix().get(0).get(1);
+                                    transitionMatrix.getTransitionMatrix().get(0).set(1, old + 1);
+                                }
+                            } else if (firstSource.charAt(i) == '1') {
+                                if (secondSource.charAt(i) == '0') {
+                                    int old = transitionMatrix.getTransitionMatrix().get(1).get(0);
+                                    transitionMatrix.getTransitionMatrix().get(1).set(0, old + 1);
+                                } else if (secondSource.charAt(i) == '1') {
+                                    int old = transitionMatrix.getTransitionMatrix().get(1).get(1);
+                                    transitionMatrix.getTransitionMatrix().get(1).set(1, old + 1);
                                 }
                             }
-                            metrics.get(ref.countOfNumber).add(Collections.singletonMap(
-                                    columnsBuilder.toString(),
-                                    transitionMatrix.calculateMetricBetweenXiAndXj()));
-                            columnsBuilder.delete(0, columnsBuilder.length());
                         }
+                        metrics.get(ref.countOfNumber).add(Collections.singletonMap(
+                                columnsBuilder.toString(),
+                                transitionMatrix.calculateMetricBetweenXiAndXj()));
+                        columnsBuilder.delete(0, columnsBuilder.length());
                     }
-                });
-            });
+                }
+            }));
             ref.countOfNumber++;
         });
     }
@@ -293,22 +333,18 @@ public class ImageRecognition {
         metrics.forEach((number, listOfIndices) -> {
             clusters.put(number, new ArrayList<>());
             AtomicReference<Double> maxValue = new AtomicReference<>(0.0);
-            listOfIndices.forEach(stringDoubleMap -> {
-                stringDoubleMap.forEach((key, value) -> {
-                    // Находим максимальное расстояние между признаками:
-                    if (value > maxValue.get()) {
-                        maxValue.set(value);
-                    }
-                });
-            });
+            listOfIndices.forEach(stringDoubleMap -> stringDoubleMap.forEach((key, value) -> {
+                // Находим максимальное расстояние между признаками:
+                if (value > maxValue.get()) {
+                    maxValue.set(value);
+                }
+            }));
             // Ставим максимально допустимое расстояние между признаками в одном кластере равное 30% от максимального расстояния:
             double maxMetric = maxValue.get() * maxMetricCoefficient;
             // Оставшиеся после откидывания по параметру alpha признаки:
             Map<Integer, List<String>> indices = new TreeMap<>();
             indices.put(number, new ArrayList<>());
-            informative.get(number).forEach((ind, inf) -> {
-                indices.get(number).add("X" + ind);
-            });
+            informative.get(number).forEach((ind, inf) -> indices.get(number).add("X" + ind));
             // Пока есть неотобранные в кластеры признаки:
             int i = 0;
             while (indices.get(number).size() > 0) {
@@ -368,40 +404,64 @@ public class ImageRecognition {
     }
 
     /**
-     * Формирование сложных признаков и их отсеивание по параметру betta
+     * Формирование сложных признаков
      *
      * @param complexIndices - переменная, в которую будем складывать сложные признаки
      * @param clusters       - кластеры с признаками
-     * @param betta          - параметр betta
      * @param metrics        - расстояния между признаками
      */
-    private void createComplexIndices(Map<Integer, Map<Integer, String>> complexIndices,
-                                      Map<Integer, List<List<String>>> clusters, double betta,
-                                      Map<Integer, List<Map<String, Double>>> metrics) {
+    private void createComplexIndices(Map<Integer, Map<String, String>> complexIndices,
+                                      Map<Integer, List<List<String>>> clusters,
+                                      Map<Integer, List<Map<String, Double>>> metrics, Map<Integer, Map<Integer, String>> indices) {
         clusters.forEach((number, clustersForNumber) -> {
             Set<String> complexIndicesForNumber = new HashSet<>();
             complexIndices.put(number, new HashMap<>());
             if (metrics.get(number).size() != 0) {
-                clustersForNumber.forEach(cluster -> {
-                    cluster.forEach(simpleInd -> {
-                        clustersForNumber.forEach(otherCluster -> {
-                            if (!cluster.equals(otherCluster)) {
-                                otherCluster.forEach(otherSimpleInd -> {
-                                    String complexInd = metrics.get(number).stream().anyMatch(map -> map.containsKey(simpleInd + "|" + otherSimpleInd))
-                                            ? simpleInd + "|" + otherSimpleInd
-                                            : otherSimpleInd + "|" + simpleInd;
-                                    if (!complexIndicesForNumber.contains(complexInd)
-                                            && metrics.get(number).stream().anyMatch(stringDoubleMap ->
-                                            stringDoubleMap.get(complexInd) != null && stringDoubleMap.get(complexInd) >= betta)) {
-                                        complexIndicesForNumber.add(complexInd);
-                                        complexIndices.get(number).put(complexIndicesForNumber.size(), complexInd);
-                                    }
-                                });
-                            }
-                        });
-                    });
-                });
+                for (List<String> cluster : clustersForNumber) {
+                    cluster.forEach(simpleInd -> clustersForNumber.forEach(otherCluster -> {
+                        if (!cluster.equals(otherCluster)) {
+                            otherCluster.forEach(otherSimpleInd -> {
+                                String complexInd = metrics.get(number).stream().anyMatch(map -> map.containsKey(simpleInd + "|" + otherSimpleInd))
+                                        ? simpleInd + "|" + otherSimpleInd
+                                        : otherSimpleInd + "|" + simpleInd;
+                                if (!complexIndicesForNumber.contains(complexInd)) {
+                                    complexIndicesForNumber.add(complexInd);
+                                    complexIndices.get(number).put(complexInd, ComplexIndGenerator.generateComplexIndValue(complexInd, indices.get(number)));
+                                }
+                            });
+                        }
+                    }));
+                }
             }
         });
+    }
+
+    /**
+     * Фильтрация сложные признаков по параметру betta:
+     * @param complexIndices - сложные признаки
+     * @param isTrueDataCache - isTrue колонка
+     * @param betta - параметр betta
+     */
+    private void filteringComplexIndicesByBetta(Map<Integer, Map<String, String>> complexIndices, Map<Integer, List<String>> isTrueDataCache, double betta) {
+        Map<Integer, Map<String, String>> filteringResult = new HashMap<>(complexIndices);
+        filteringResult.forEach((number, indMap) -> Map.copyOf(indMap).forEach((alias, indValue) -> {
+            TransitionMatrixForComplexIndices matrix = new TransitionMatrixForComplexIndices(DB_TABLES.values()[number], alias);
+            /*
+            Массив количества переходов элементов, где индексы идут в следующем соотвествии: [00->0], [01->0], [10->0], [11->0], [00->1], [01->1], [10->1], [11->1]
+            */
+            List<Integer> countOfTransitionElement = Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0);
+            List<String> isTrueForNumberData = isTrueDataCache.get(number);
+
+            checkTransitionForComplexIndices(isTrueForNumberData, indValue, countOfTransitionElement);
+
+            matrix.getTransitionMatrix().add(Arrays.asList(countOfTransitionElement.get(0), countOfTransitionElement.get(1),
+                    countOfTransitionElement.get(2), countOfTransitionElement.get(3)));
+
+            matrix.getTransitionMatrix().add(Arrays.asList(countOfTransitionElement.get(4), countOfTransitionElement.get(5),
+                    countOfTransitionElement.get(6), countOfTransitionElement.get(7)));
+            if (matrix.getInformative() < I0_Y.allInformativeI0_Y.get(DB_TABLES.values()[number]) * betta/100) {
+                complexIndices.get(number).remove(alias);
+            }
+        }));
     }
 }

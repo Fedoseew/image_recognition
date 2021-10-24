@@ -2,7 +2,7 @@ package fedoseew.project.app.UI.Console;
 
 import fedoseew.project.app.Configurations.ApplicationConfiguration;
 import fedoseew.project.app.Database.DB_TABLES;
-import fedoseew.project.app.Logic.ConsoleImageParserToBinaryCode;
+import fedoseew.project.app.Logic.utils.ConsoleImageParserToBinaryCode;
 import fedoseew.project.app.Logic.ImageRecognition;
 
 import java.io.*;
