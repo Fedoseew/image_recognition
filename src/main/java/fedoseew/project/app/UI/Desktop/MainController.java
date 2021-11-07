@@ -72,21 +72,20 @@ public class MainController {
         setListenerForGoButton();
         setListenersForSettingScrolls();
         setListenerForCloseButton();
+        alphaScroll.setValue(10d);
+        bettaScroll.setValue(50d);
+        gammaScroll.setValue(3d);
     }
 
     private void createGrid() {
-
         grid.setCursor(Cursor.HAND);
-
         int sizeOfGrid = ApplicationConfiguration.getSizeOfGrid();
 
         for (int i = 1; i <= sizeOfGrid; i++) {
-
             List<Map<Node, Boolean>> row = new ArrayList<>();
             cells.add(row);
 
             for (int j = 1; j <= sizeOfGrid; j++) {
-
                 Node cell = createCell();
                 Map<Node, Boolean> map = new HashMap<>();
                 map.put(cell, false);
@@ -99,55 +98,35 @@ public class MainController {
 
     private Node createCell() {
         ListView<?> cell = new ListView<>();
-
         cell.setCursor(Cursor.HAND);
         cell.setStyle("-fx-background-color: white !important; -fx-border-color: black");
-
         cell.setOnMouseClicked(click -> {
-
             if (cell.getStyle().contains("-fx-background-color: black")) {
-
                 cell.setStyle("-fx-background-color: white; -fx-border-color: black");
                 setValue(cell, false);
-
             } else {
                 cell.setStyle("-fx-background-color: black; -fx-border-color: black");
                 setValue(cell, true);
-
             }
         });
 
-        cell.hoverProperty()
-                .addListener((ObservableValue<? extends Boolean> observable,
-                              Boolean oldValue, Boolean newValue) -> {
-
-                    if (!cell.getStyle().contains("-fx-background-color: black")) {
-
-                        if (newValue) {
-
-                            cell.setStyle("-fx-background-color: #425c81; -fx-border-color: black");
-
-                        } else {
-
-                            cell.setStyle("-fx-background-color: white; -fx-border-color: black");
-
-                        }
-                    }
-                });
-
+        cell.hoverProperty().addListener((ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) -> {
+            if (!cell.getStyle().contains("-fx-background-color: black")) {
+                if (newValue) {
+                    cell.setStyle("-fx-background-color: #425c81; -fx-border-color: black");
+                } else {
+                    cell.setStyle("-fx-background-color: white; -fx-border-color: black");
+                }
+            }
+        });
         return cell;
     }
 
     private void setValue(Node cell, boolean value) {
-
         for (List<Map<Node, Boolean>> rows : cells) {
-
             for (Map<Node, Boolean> map : rows) {
-
                 if (map.containsKey(cell)) {
-
                     map.replace(cell, value);
-
                 }
             }
         }
@@ -182,7 +161,6 @@ public class MainController {
                 });
                 createResponseNotification(response);
                 clearAllCells();
-
             } catch (SQLException | IOException exception) {
                 Logger.getGlobal().warning(exception.getLocalizedMessage());
                 exception.printStackTrace();
@@ -192,9 +170,7 @@ public class MainController {
 
     private void clearAllCells() {
         cells.forEach(row -> row.forEach(cell -> {
-            cell.keySet().forEach(node -> {
-                node.setStyle("-fx-background-color: white; -fx-border-color: black");
-            });
+            cell.keySet().forEach(node -> node.setStyle("-fx-background-color: white; -fx-border-color: black"));
             cell.entrySet().forEach(entry -> entry.setValue(false));
         }));
     }
@@ -233,10 +209,8 @@ public class MainController {
         } else {
             responseAlert.setHeaderText("Recognition completed!");
             responseAlert.setContentText("Ooops! Failed to recognize the image :( Try again.");
-            responseAlert.getDialogPane().getButtonTypes().add(
-                    new ButtonType("Try again", ButtonBar.ButtonData.CANCEL_CLOSE));
+            responseAlert.getDialogPane().getButtonTypes().add(new ButtonType("Try again", ButtonBar.ButtonData.CANCEL_CLOSE));
         }
-
         Optional<ButtonType> result = responseAlert.showAndWait();
         if (result.isPresent()) {
             setListenersOnCloseDialogEvent(result.get());
@@ -252,14 +226,13 @@ public class MainController {
                     metric = Double.parseDouble(minMetric.getText());
                 } catch (NumberFormatException ignored) {
                 }
-                new ImageRecognition()
-                        .recognition(parseImageToBinaryCode(), new Object[]{
+                new ImageRecognition().recognition(parseImageToBinaryCode(),
+                        new Object[]{
                                 (int) alphaScroll.getValue(),
                                 (int) bettaScroll.getValue(),
                                 (int) gammaScroll.getValue(),
                                 metric
-                        })
-                        .forEach((key, value) -> db_table.set(key));
+                        }).forEach((key, value) -> db_table.set(key));
 
                 int chosenNumber = createInputDialog();
                 if (chosenNumber != -3) {
@@ -307,7 +280,7 @@ public class MainController {
         AtomicInteger result = new AtomicInteger(-1);
         number.get().ifPresent(text -> {
             try {
-                if ("no one" .equals(text)) {
+                if ("no one".equals(text)) {
                     result.set(-3);
                 } else {
                     result.set(Integer.parseInt(text));
@@ -324,15 +297,9 @@ public class MainController {
     }
 
     private void setListenersForSettingScrolls() {
-        alphaScroll.valueProperty().addListener((observableValue, number, t1) -> {
-            setTextAndStyleForSlider(alphaScroll, alphaField, t1);
-        });
-        bettaScroll.valueProperty().addListener((observableValue, number, t1) -> {
-            setTextAndStyleForSlider(bettaScroll, bettaField, t1);
-        });
-        gammaScroll.valueProperty().addListener((observableValue, number, t1) -> {
-            setTextAndStyleForSlider(gammaScroll, gammaField, t1);
-        });
+        alphaScroll.valueProperty().addListener((observableValue, number, t1) -> setTextAndStyleForSlider(alphaScroll, alphaField, t1));
+        bettaScroll.valueProperty().addListener((observableValue, number, t1) -> setTextAndStyleForSlider(bettaScroll, bettaField, t1));
+        gammaScroll.valueProperty().addListener((observableValue, number, t1) -> setTextAndStyleForSlider(gammaScroll, gammaField, t1));
     }
 
     private void setTextAndStyleForSlider(Slider slider, TextField textField, Number number) {

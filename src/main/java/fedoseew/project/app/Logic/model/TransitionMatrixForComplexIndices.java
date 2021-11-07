@@ -13,6 +13,10 @@ public class TransitionMatrixForComplexIndices {
     private final DB_TABLES table;
     private final String complexIndAlias;
 
+    public String getComplexIndices() {
+        return complexIndAlias;
+    }
+
     public TransitionMatrixForComplexIndices(DB_TABLES table, String complexIndAlias) {
         this.table = table;
         this.complexIndAlias = complexIndAlias;
@@ -57,6 +61,7 @@ public class TransitionMatrixForComplexIndices {
         return bd.doubleValue();
     }
 
+
     public double getInformative() {
         return calculateInformative();
     }
@@ -84,7 +89,7 @@ public class TransitionMatrixForComplexIndices {
 
     @Override
     public String toString() {
-        return "\nTransition matrix for table [" +
+        return "\n\nTransition matrix for table [" +
                 table +
                 "] for indices [" +
                 complexIndAlias +
