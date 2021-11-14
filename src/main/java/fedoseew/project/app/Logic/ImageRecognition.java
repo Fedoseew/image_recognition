@@ -163,7 +163,7 @@ public class ImageRecognition {
         Map<Integer, Map<String, String>> complexIndices = new TreeMap<>();
 
         // Формирование сложных признаков:
-        createComplexIndices(complexIndices, clusters, metrics, indices);
+        createBinaryComplexIndices(complexIndices, clusters, metrics, indices);
 
         // Фильтрация сложных признаков по параметру betta:
         Map<Integer, List<TransitionMatrixForComplexIndices>> transitionMatricesForComplexIndices =
@@ -182,7 +182,7 @@ public class ImageRecognition {
         // Вычисление результата распознавания:
         Pair<Integer, Integer> result = calculateResult(isTrueDataCache, countOfTransition);
 
-        System.out.println(result);
+        System.out.println("Result is " + result);
     }
 
     @Nullable
@@ -190,21 +190,68 @@ public class ImageRecognition {
             Map<Integer, List<String>> isTrueDataCache,
             Map<Integer, Map<Integer, Integer>> countOfTransition
     ) {
-        final int[] maxCount = {0};
-        AtomicReference<Pair<Integer, Integer>> result = new AtomicReference<>();
+        Map<Integer, List<Map<String, Integer>>> counts = new LinkedHashMap<>(
+                Map.of(
+                        0, new ArrayList<>(List.of(Map.of("TRUE", 0), Map.of("FALSE", 0))),
+                        1, new ArrayList<>(List.of(Map.of("TRUE", 0), Map.of("FALSE", 0))),
+                        2, new ArrayList<>(List.of(Map.of("TRUE", 0), Map.of("FALSE", 0))),
+                        3, new ArrayList<>(List.of(Map.of("TRUE", 0), Map.of("FALSE", 0))),
+                        4, new ArrayList<>(List.of(Map.of("TRUE", 0), Map.of("FALSE", 0))),
+                        5, new ArrayList<>(List.of(Map.of("TRUE", 0), Map.of("FALSE", 0))),
+                        6, new ArrayList<>(List.of(Map.of("TRUE", 0), Map.of("FALSE", 0))),
+                        7, new ArrayList<>(List.of(Map.of("TRUE", 0), Map.of("FALSE", 0))),
+                        8, new ArrayList<>(List.of(Map.of("TRUE", 0), Map.of("FALSE", 0))),
+                        9, new ArrayList<>(List.of(Map.of("TRUE", 0), Map.of("FALSE", 0)))
+                )
+        );
+
         countOfTransition.forEach((number, mapOfTransitions) -> mapOfTransitions.forEach((numberOfObject, count) -> {
-            if (count > maxCount[0]) {
-                maxCount[0] = count;
                 if (isTrueDataCache.get(number).get(numberOfObject).equals("TRUE")) {
-                    result.set(Pair.create(number, numberOfObject));
+                   counts.get(number).set(0, Map.of("TRUE", count));
                 } else {
-                    if (result.get() != null && result.get().getKey().equals(number)) {
-                        result.set(null);
-                    }
+                    counts.get(number).set(1, Map.of("FALSE", count));
                 }
-            }
         }));
-        return result.get();
+
+        Map<Integer, Integer> maxTrueCount = new LinkedHashMap<>(Map.of(0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0));
+        Map<Integer, Integer> maxFalseCount = new LinkedHashMap<>(Map.of(0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0));
+
+        counts.forEach((number, list) -> {
+                Integer oldValue = maxTrueCount.get(number);
+                maxTrueCount.put(number, list.get(0).get("TRUE") + oldValue);
+        });
+
+        counts.forEach((number, list) -> {
+                Integer oldValue = maxFalseCount.get(number);
+                maxFalseCount.put(number, list.get(1).get("FALSE") + oldValue);
+        });
+
+        AtomicBoolean flag = new AtomicBoolean(true);
+        Optional<Map.Entry<Integer, Integer>> maxTrue = maxTrueCount.entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue));
+        Optional<Map.Entry<Integer, Integer>> maxFalse = maxFalse = maxFalseCount.entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue));
+        /*while (flag.get()) {
+            maxTrue = maxTrueCount.entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue));
+            maxFalse = maxFalseCount.entrySet().stream().max(Comparator.comparingInt(Map.Entry::getValue));
+            Optional<Map.Entry<Integer, Integer>> finalMaxTrue = maxTrue;
+            maxFalse.ifPresent(pair -> {
+                if (finalMaxTrue.isPresent() && finalMaxTrue.get().getKey().equals(pair.getKey())) {
+                    maxTrueCount.remove(pair.getKey());
+                } else {
+                    flag.set(false);
+                }
+            });
+        }*/
+        Map<Integer, Integer> resultMap = new LinkedHashMap<>();
+        counts.forEach((number, list) -> {
+            int subtraction = list.get(0).get("TRUE") - list.get(1).get("FALSE");
+            resultMap.put(number, subtraction);
+        });
+
+        Map.Entry<Integer, Integer> entry = resultMap.entrySet().stream()
+                .filter(e -> e.getValue() != 0)
+                .max(Comparator.comparingInt(Map.Entry::getValue))
+                .get();
+        return Pair.create(entry.getKey(), entry.getValue());
     }
 
     private Map<Integer, Map<Integer, Integer>> calculateCountOfTransitions(
@@ -349,7 +396,7 @@ public class ImageRecognition {
      */
     private void filteringByAlpha(int alpha, List<List<TransitionMatrix>> allTransitionMatrices,
                                   List<Map<Integer, Double>> informative) {
-        double alphaProcent = allTransitionMatrices
+        double alphaPercent = allTransitionMatrices
                 .get(1)
                 .get(0)
                 .getI0_Y()
@@ -357,7 +404,7 @@ public class ImageRecognition {
 
         List.copyOf(informative).forEach(tableInformative ->
                 Map.copyOf(tableInformative).forEach((column, informativeOfColumn) -> {
-                    if (informativeOfColumn < alphaProcent) {
+                    if (informativeOfColumn < alphaPercent) {
                         tableInformative.remove(column);
                     }
                 }));
@@ -383,13 +430,13 @@ public class ImageRecognition {
                 if (!column1.equals(column2)) {
                     // Проверка на дубликаты (HINT: признак X1X2 == X2X1):
                     AtomicBoolean duplicates = new AtomicBoolean(false);
-                    metrics.forEach((key, value) -> value.forEach(x -> {
+                    metrics.get(ref.countOfNumber).forEach(x -> {
                         boolean conditional = x.containsKey("X" + column1 + "|" + "X" + column2)
                                 || x.containsKey("X" + column2 + "|" + "X" + column1);
                         if (conditional) {
                             duplicates.set(true);
                         }
-                    }));
+                    });
 
                     if (!duplicates.get()) {
                         // Расчёт по формуле, добавление в map с метриками и формирование сложных признаков:
@@ -512,26 +559,30 @@ public class ImageRecognition {
     }
 
     /**
-     * Формирование сложных признаков
+     * Формирование двойных сложных признаков
      *
      * @param complexIndices  переменная, в которую будем складывать сложные признаки
      * @param clusters        кластеры с признаками
      * @param metrics         расстояния между признаками
      */
-    private void createComplexIndices(Map<Integer, Map<String, String>> complexIndices,
-                                      Map<Integer, List<List<String>>> clusters,
-                                      Map<Integer, List<Map<String, Double>>> metrics, Map<Integer, Map<Integer, String>> indices) {
+    private void createBinaryComplexIndices(Map<Integer, Map<String, String>> complexIndices,
+                                            Map<Integer, List<List<String>>> clusters,
+                                            Map<Integer, List<Map<String, Double>>> metrics,
+                                            Map<Integer, Map<Integer, String>> indices) {
         clusters.forEach((number, clustersForNumber) -> {
             Set<String> complexIndicesForNumber = new LinkedHashSet<>();
             complexIndices.put(number, new LinkedHashMap<>());
             if (metrics.get(number).size() != 0) {
                 for (List<String> cluster : clustersForNumber) {
-                    cluster.forEach(simpleInd -> clustersForNumber.forEach(otherCluster -> {
+                   cluster.forEach(simpleInd -> clustersForNumber.forEach(otherCluster -> {
                         if (!cluster.equals(otherCluster)) {
                             otherCluster.forEach(otherSimpleInd -> {
-                                String complexInd = metrics.get(number).stream().anyMatch(map -> map.containsKey(simpleInd + "|" + otherSimpleInd))
+                                String complexInd = metrics.get(number)
+                                        .stream()
+                                        .anyMatch(map -> map.containsKey(simpleInd + "|" + otherSimpleInd))
                                         ? simpleInd + "|" + otherSimpleInd
                                         : otherSimpleInd + "|" + simpleInd;
+
                                 if (!complexIndicesForNumber.contains(complexInd)) {
                                     complexIndicesForNumber.add(complexInd);
                                     complexIndices.get(number).put(
@@ -549,6 +600,7 @@ public class ImageRecognition {
 
     /**
      * Фильтрация сложных признаков по параметру betta:
+     *
      * @param complexIndices  сложные признаки
      * @param isTrueDataCache  isTrue колонка
      * @param betta  параметр betta
