@@ -32,22 +32,14 @@ public class TransitionMatrixForComplexIndices {
     }
 
     private double getI0_YX() {
-        return TransitionMatrix.log2(
-                ((double) CombinatoricsUtils.factorial(transitionMatrix.get(0).get(0) + transitionMatrix.get(0).get(1)) /
-                        (CombinatoricsUtils.factorial(transitionMatrix.get(0).get(0)) * CombinatoricsUtils.factorial(transitionMatrix.get(0).get(1)))) *
-
-                        ((double) CombinatoricsUtils.factorial((transitionMatrix.get(0).get(2) + transitionMatrix.get(0).get(3))) /
-                                (CombinatoricsUtils.factorial(transitionMatrix.get(0).get(2)) * CombinatoricsUtils.factorial(transitionMatrix.get(0).get(3)))) *
-
-                        ((double) CombinatoricsUtils.factorial((transitionMatrix.get(1).get(0) + transitionMatrix.get(1).get(1))) /
-                                (CombinatoricsUtils.factorial(transitionMatrix.get(1).get(0)) * CombinatoricsUtils.factorial(transitionMatrix.get(1).get(1)))) *
-
-                        ((double) CombinatoricsUtils.factorial((transitionMatrix.get(1).get(1) + transitionMatrix.get(1).get(2))) /
-                                (CombinatoricsUtils.factorial(transitionMatrix.get(1).get(1)) * CombinatoricsUtils.factorial(transitionMatrix.get(1).get(2)))) *
-
-                        ((double) CombinatoricsUtils.factorial((transitionMatrix.get(1).get(2) + transitionMatrix.get(1).get(3))) /
-                                (CombinatoricsUtils.factorial(transitionMatrix.get(1).get(2)) * CombinatoricsUtils.factorial(transitionMatrix.get(1).get(3))))
-        );
+        double n = 1;
+        for (List<Integer> matrix : transitionMatrix) {
+            for (int i = 0; i < matrix.size() - 1; i++) {
+                n *= ((double) CombinatoricsUtils.factorial(matrix.get(i) + matrix.get(i + 1)) /
+                        (CombinatoricsUtils.factorial(matrix.get(i)) * CombinatoricsUtils.factorial(matrix.get(i + 1))));
+            }
+        }
+        return TransitionMatrix.log2(n);
     }
 
     private double calculateInformative() {
@@ -68,7 +60,15 @@ public class TransitionMatrixForComplexIndices {
 
     private String printMatrixForComplexIndices() {
         StringBuilder resultString = new StringBuilder();
-        List<String> valuesList = List.of("00", "01", "10", "11");
+        List<String> valuesList = new ArrayList<>();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < transitionMatrix.get(0).size(); i++) {
+            if (i != 0 && i % 3 == 0) {
+                valuesList.add(sb.toString());
+                sb.delete(0, sb.length());
+            }
+            sb.append(i);
+        }
         final int[] rowInd = {0};
         this.getTransitionMatrix().forEach(row -> {
             final int[] colInd = {0};

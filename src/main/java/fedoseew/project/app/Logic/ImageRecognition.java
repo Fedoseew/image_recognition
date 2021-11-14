@@ -10,6 +10,7 @@ import fedoseew.project.app.Logic.model.TransitionMatrixForIndices;
 import fedoseew.project.app.Logic.utils.BinaryCodeComparator;
 import fedoseew.project.app.Logic.utils.ComplexIndGenerator;
 import org.apache.commons.math3.util.Pair;
+import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 
 import java.sql.Connection;
@@ -23,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ImageRecognition {
 
     private final String[] queries = DatabaseUtils.selectAllFromDb();
+    private Object[] data;
     DatabaseUtils databaseUtils = DatabaseUtils.createOrGetDatabase();
 
     /**
@@ -76,6 +78,20 @@ public class ImageRecognition {
      * @throws SQLException выкидывается при ошибках соединения или работы с БД.
      */
     private void smartRecognition(String source, int alpha, int betta, int gamma, double minMetric) throws SQLException {
+        // Подгрузка данных
+        Object[] loadData = data == null ? loadData(alpha, betta, gamma, minMetric) : data;
+        Map<Integer, String> userSourceToNewSpace = userSourceToNewSpace(source, (Map<Integer, Map<String, String>>) loadData[2]);
+
+        // Подсчёт совпадений:
+        Map<Integer, Map<Integer, Integer>> countOfTransition = calculateCountOfTransitions((Map<Integer, List<String>>) loadData[1], userSourceToNewSpace);
+
+        // Вычисление результата распознавания:
+        Pair<Integer, Integer> result = calculateResult((Map<Integer, List<String>>) loadData[0], countOfTransition);
+
+        System.out.println("Result is " + result);
+    }
+
+    public Object[] loadData(int alpha, int betta, int gamma, double minMetric) throws SQLException {
         // Будем кешировать значения колонок source и isTrue для каждой из таблиц:
         Map<Integer, List<String>> sourcesDataCache = new TreeMap<>();
         Map<Integer, List<String>> isTrueDataCache = new TreeMap<>();
@@ -159,33 +175,23 @@ public class ImageRecognition {
         // Кластеризация признаков:
         clustering(clusters, metrics, minMetric, informative);
 
-        // Сложные признаки (key -> число, value -> (key -> alias ("Xi|Xj), value - бинарный кортеж сложного признака)):
-        Map<Integer, Map<String, String>> complexIndices = new TreeMap<>();
+        // Сложные признаки (key -> число, value -> (key -> alias ("Xi1|Xi2|Xi3|Xi4|Xi5), value - бинарный кортеж сложного признака)):
+        Map<Integer, Map<String, String>> complexIndices = new HashMap<>();
 
-        // Формирование сложных признаков:
-        createBinaryComplexIndices(complexIndices, clusters, metrics, indices);
-
-        // Фильтрация сложных признаков по параметру betta:
+        // ФОрмирование и фильтрация сложных признаков по параметру betta:
         Map<Integer, List<TransitionMatrixForComplexIndices>> transitionMatricesForComplexIndices =
-                filteringComplexIndicesByBetta(complexIndices, isTrueDataCache, betta);
-
-        // TODO: Создание тройных (или более) сложных признаков из тех, которые отсеялись по betta
+                createComplexIndices(complexIndices, clusters, metrics, indices, isTrueDataCache, betta);
 
         // Переход в новое пространтсво по параметру gamma:
         Map<Integer, Map<String, String>> complexIndicesNewSpace = convertComplexIndicesToNewSpace(transitionMatricesForComplexIndices, gamma);
+
         Map<Integer, List<String>> indicesNewSpace = convertIndicesToNewSpace(sourcesDataCache, complexIndicesNewSpace);
-        Map<Integer, String> userSourceToNewSpace = userSourceToNewSpace(source, complexIndicesNewSpace);
+        data = new Object[] {isTrueDataCache, indicesNewSpace, complexIndicesNewSpace};
 
-        // Подсчёт совпадений:
-        Map<Integer, Map<Integer, Integer>> countOfTransition = calculateCountOfTransitions(indicesNewSpace, userSourceToNewSpace);
-
-        // Вычисление результата распознавания:
-        Pair<Integer, Integer> result = calculateResult(isTrueDataCache, countOfTransition);
-
-        System.out.println("Result is " + result);
+        return data;
     }
 
-    @Nullable
+
     private Pair<Integer, Integer> calculateResult(
             Map<Integer, List<String>> isTrueDataCache,
             Map<Integer, Map<Integer, Integer>> countOfTransition
@@ -251,6 +257,7 @@ public class ImageRecognition {
                 .filter(e -> e.getValue() != 0)
                 .max(Comparator.comparingInt(Map.Entry::getValue))
                 .get();
+
         return Pair.create(entry.getKey(), entry.getValue());
     }
 
@@ -276,7 +283,7 @@ public class ImageRecognition {
     }
 
     private Map<Integer, String> userSourceToNewSpace(String source, Map<Integer, Map<String, String>> complexIndicesNewSpace) {
-        Map<String, Integer> map = Map.of("00", 0, "01", 1, "10", 2, "11", 3);
+        Map<String, Integer> map = Map.of("000", 0, "001", 1, "010", 2, "011", 3, "100", 4, "101", 5, "110", 6, "111", 7);
         Map<Integer, String> userSourceNewSpace = new LinkedHashMap<>();
         complexIndicesNewSpace.forEach((number, mapOfIndicesWithNewValue) -> {
             StringBuilder sb = new StringBuilder();
@@ -284,7 +291,8 @@ public class ImageRecognition {
                 String[] split = indAlias.split("\\|");
                 String first = String.valueOf(source.charAt(Integer.parseInt(split[0].split("X")[1]) - 1));
                 String second = String.valueOf(source.charAt(Integer.parseInt(split[1].split("X")[1]) - 1));
-                int index = map.get(first + second);
+                String third = String.valueOf(source.charAt(Integer.parseInt(split[2].split("X")[1]) - 1));
+                int index = map.get(first + second + third);
                 char charAt = newValue.charAt(index);
                 sb.append(charAt);
             });
@@ -295,7 +303,7 @@ public class ImageRecognition {
 
     private Map<Integer, List<String>> convertIndicesToNewSpace(Map<Integer, List<String>> sourcesDataCache, Map<Integer, Map<String, String>> complexIndicesNewSpace) {
         Map<Integer, List<String>> indicesNewSpace = new LinkedHashMap<>();
-        Map<String, Integer> map = Map.of("00", 0, "01", 1, "10", 2, "11", 3);
+        Map<String, Integer> map = Map.of("000", 0, "001", 1, "010", 2, "011", 3, "100", 4, "101", 5, "110", 6, "111", 7);
         complexIndicesNewSpace.forEach((number, mapOfIndicesWithNewValue) -> {
             indicesNewSpace.put(number, new ArrayList<>());
             List<String> sourcesForNumber = sourcesDataCache.get(number);
@@ -305,7 +313,8 @@ public class ImageRecognition {
                     String[] split = indAlias.split("\\|");
                     String first = String.valueOf(source.charAt(Integer.parseInt(split[0].split("X")[1]) - 1));
                     String second = String.valueOf(source.charAt(Integer.parseInt(split[1].split("X")[1]) - 1));
-                    int index = map.get(first + second);
+                    String third = String.valueOf(source.charAt(Integer.parseInt(split[2].split("X")[1]) - 1));
+                    int index = map.get(first + second + third);
                     char charAt = newValue.charAt(index);
                     sb.append(charAt);
                 });
@@ -353,34 +362,207 @@ public class ImageRecognition {
      * Проверка во что переходит сложный признак
      */
     private void checkTransitionForComplexIndices(List<String> isTrueForNumberData, String indValue, List<Integer> countOfTransitionElement) {
-        for (int chInd = 0, isTrueColumnInd = 0; chInd < indValue.length(); chInd += 3, isTrueColumnInd++) {
-            String value = "" + indValue.charAt(chInd) + indValue.charAt(chInd + 1);
+        for (int chInd = 0, isTrueColumnInd = 0; chInd < indValue.length(); chInd += 6, isTrueColumnInd++) {
+            String value = "" +
+                    indValue.charAt(chInd) +
+                    indValue.charAt(chInd + 1) +
+                    indValue.charAt(chInd + 2) +
+                    indValue.charAt(chInd + 3) +
+                    indValue.charAt(chInd + 4);
             int tmpCount = 0;
             int ind = 0;
             switch (value) {
-                case "00":
+                case "00000":
                     tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
                             ? countOfTransitionElement.get(0) + 1
-                            : countOfTransitionElement.get(4) + 1;
-                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 0 : 4;
+                            : countOfTransitionElement.get(32) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 0 : 32;
                     break;
-                case "01":
+                case "00001":
                     tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
                             ? countOfTransitionElement.get(1) + 1
-                            : countOfTransitionElement.get(5) + 1;
-                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 1 : 5;
+                            : countOfTransitionElement.get(33) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 1 : 33;
                     break;
-                case "10":
+                case "00010":
                     tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
                             ? countOfTransitionElement.get(2) + 1
-                            : countOfTransitionElement.get(6) + 1;
-                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 2 : 6;
+                            : countOfTransitionElement.get(34) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 2 : 34;
                     break;
-                case "11":
+                case "00011":
                     tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
                             ? countOfTransitionElement.get(3) + 1
-                            : countOfTransitionElement.get(7) + 1;
-                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 3 : 7;
+                            : countOfTransitionElement.get(35) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 3 : 35;
+                    break;
+                case "00100":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(4) + 1
+                            : countOfTransitionElement.get(36) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 4 : 36;
+                    break;
+                case "00101":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(5) + 1
+                            : countOfTransitionElement.get(37) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 5 : 37;
+                    break;
+                case "000110":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(6) + 1
+                            : countOfTransitionElement.get(38) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 6 : 38;
+                    break;
+                case "00111":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(7) + 1
+                            : countOfTransitionElement.get(39) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 7 : 39;
+                    break;
+                case "01000":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(8) + 1
+                            : countOfTransitionElement.get(40) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 8 : 40;
+                    break;
+                case "01001":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(9) + 1
+                            : countOfTransitionElement.get(41) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 9 : 41;
+                    break;
+                case "01010":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(10) + 1
+                            : countOfTransitionElement.get(42) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 10 : 42;
+                    break;
+                case "01011":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(11) + 1
+                            : countOfTransitionElement.get(43) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 11 : 43;
+                    break;
+                case "01100":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(12) + 1
+                            : countOfTransitionElement.get(44) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 12 : 44;
+                    break;
+                case "01101":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(13) + 1
+                            : countOfTransitionElement.get(45) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 13 : 45;
+                    break;
+                case "01110":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(14) + 1
+                            : countOfTransitionElement.get(46) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 14 : 46;
+                    break;
+                case "01111":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(15) + 1
+                            : countOfTransitionElement.get(47) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 15 : 47;
+                    break;
+                case "10000":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(16) + 1
+                            : countOfTransitionElement.get(48) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 16 : 48;
+                    break;
+                case "10001":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(17) + 1
+                            : countOfTransitionElement.get(49) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 17 : 49;
+                    break;
+                case "10010":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(18) + 1
+                            : countOfTransitionElement.get(50) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 18 : 50;
+                    break;
+                case "10011":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(19) + 1
+                            : countOfTransitionElement.get(51) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 19 : 51;
+                    break;
+                case "10100":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(20) + 1
+                            : countOfTransitionElement.get(52) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 20 : 52;
+                    break;
+                case "10101":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(21) + 1
+                            : countOfTransitionElement.get(53) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 21 : 53;
+                    break;
+                case "10110":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(22) + 1
+                            : countOfTransitionElement.get(54) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 22 : 54;
+                    break;
+                case "10111":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(23) + 1
+                            : countOfTransitionElement.get(55) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 23 : 55;
+                    break;
+                case "11000":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(24) + 1
+                            : countOfTransitionElement.get(56) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 24 : 56;
+                    break;
+                case "11001":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(25) + 1
+                            : countOfTransitionElement.get(57) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 25 : 57;
+                    break;
+                case "11010":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(26) + 1
+                            : countOfTransitionElement.get(58) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 26 : 58;
+                    break;
+                case "11011":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(27) + 1
+                            : countOfTransitionElement.get(59) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 27 : 59;
+                    break;
+                case "11100":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(28) + 1
+                            : countOfTransitionElement.get(60) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 28 : 60;
+                    break;
+                case "11101":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(29) + 1
+                            : countOfTransitionElement.get(61) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 29 : 61;
+                    break;
+                case "11110":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(30) + 1
+                            : countOfTransitionElement.get(62) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 30 : 62;
+                    break;
+                case "11111":
+                    tmpCount = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd))
+                            ? countOfTransitionElement.get(31) + 1
+                            : countOfTransitionElement.get(63) + 1;
+                    ind = Boolean.parseBoolean(isTrueForNumberData.get(isTrueColumnInd)) ? 31 : 63;
                     break;
             }
             countOfTransitionElement.set(ind, tmpCount);
@@ -560,42 +742,177 @@ public class ImageRecognition {
 
     /**
      * Формирование двойных сложных признаков
-     *
-     * @param complexIndices  переменная, в которую будем складывать сложные признаки
+     *  @param complexIndices  переменная, в которую будем складывать сложные признаки
      * @param clusters        кластеры с признаками
      * @param metrics         расстояния между признаками
+     * @return
      */
-    private void createBinaryComplexIndices(Map<Integer, Map<String, String>> complexIndices,
-                                            Map<Integer, List<List<String>>> clusters,
-                                            Map<Integer, List<Map<String, Double>>> metrics,
-                                            Map<Integer, Map<Integer, String>> indices) {
+    private Map<Integer, List<TransitionMatrixForComplexIndices>> createComplexIndices(Map<Integer, Map<String, String>> complexIndices,
+                                                                                       Map<Integer, List<List<String>>> clusters,
+                                                                                       Map<Integer, List<Map<String, Double>>> metrics,
+                                                                                       Map<Integer, Map<Integer, String>> indices,
+                                                                                       Map<Integer, List<String>> isTrueDataCache,
+                                                                                       double betta) {
+        Map<Integer, List<TransitionMatrixForComplexIndices>> resultMap = new LinkedHashMap<>();
         clusters.forEach((number, clustersForNumber) -> {
-            Set<String> complexIndicesForNumber = new LinkedHashSet<>();
-            complexIndices.put(number, new LinkedHashMap<>());
+            Set<String> complexIndicesForNumber = new HashSet<>();
+            complexIndices.put(number, new HashMap<>());
             if (metrics.get(number).size() != 0) {
-                for (List<String> cluster : clustersForNumber) {
-                   cluster.forEach(simpleInd -> clustersForNumber.forEach(otherCluster -> {
-                        if (!cluster.equals(otherCluster)) {
-                            otherCluster.forEach(otherSimpleInd -> {
-                                String complexInd = metrics.get(number)
-                                        .stream()
-                                        .anyMatch(map -> map.containsKey(simpleInd + "|" + otherSimpleInd))
-                                        ? simpleInd + "|" + otherSimpleInd
-                                        : otherSimpleInd + "|" + simpleInd;
-
-                                if (!complexIndicesForNumber.contains(complexInd)) {
-                                    complexIndicesForNumber.add(complexInd);
-                                    complexIndices.get(number).put(
-                                            complexInd,
-                                            ComplexIndGenerator.generateComplexIndValue(complexInd, indices.get(number))
-                                    );
+                for (List<String> firstCluster : clustersForNumber) {
+                    for (List<String> secondCluster : clustersForNumber) {
+                        if (firstCluster.equals(secondCluster)) continue;
+                        for (List<String> thirdCluster : clustersForNumber) {
+                            if (firstCluster.equals(thirdCluster) || secondCluster.equals(thirdCluster)) continue;
+                            for (List<String> fourthCluster : clustersForNumber) {
+                                if (firstCluster.equals(fourthCluster) || secondCluster.equals(fourthCluster)
+                                        || thirdCluster.equals(fourthCluster)) continue;
+                                for (List<String> fiveCluster : clustersForNumber) {
+                                    if (firstCluster.equals(fiveCluster) || secondCluster.equals(firstCluster)
+                                            || thirdCluster.equals(fiveCluster) || fourthCluster.equals(firstCluster)) continue;
+                                    firstCluster.forEach(firstInd -> {
+                                        secondCluster.forEach(secondInd -> {
+                                            thirdCluster.forEach(thirdInd -> {
+                                                fourthCluster.forEach(fourthInd -> {
+                                                    fiveCluster.forEach(fiveInd -> {
+                                                        if (!objectsNotEquals(firstInd, secondInd, thirdInd, fourthInd, fiveInd)) {
+                                                            String complexInd = firstInd + "|" + secondInd + "|" + thirdInd + "|" + fourthInd + "|" + fiveInd;
+                                                            if (complexIndNotExist(complexIndicesForNumber, firstInd, secondInd, thirdInd, fourthInd, fiveInd)) {
+                                                                complexIndicesForNumber.add(complexInd);
+                                                                complexIndices.get(number).put(
+                                                                        complexInd,
+                                                                        ComplexIndGenerator.generateComplexIndValue(
+                                                                                complexInd, indices.get(number)
+                                                                        )
+                                                                );
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                            });
+                                        });
+                                    });
                                 }
-                            });
+                            }
                         }
-                    }));
+                    }
                 }
             }
+            List<TransitionMatrixForComplexIndices> transitionMatricesForComplexIndices = new ArrayList<>();
+            resultMap.put(number, transitionMatricesForComplexIndices);
+            for (Map.Entry<String, String> entry : Map.copyOf(complexIndices.get(number)).entrySet()) {
+                String alias = entry.getKey();
+                String indValue = entry.getValue();
+                TransitionMatrixForComplexIndices matrix = new TransitionMatrixForComplexIndices(DB_TABLES.values()[number], alias);
+            /*
+            Массив количества переходов элементов, где индексы идут в следующем соотвествии:
+             [00000->0], [00001->0], [00010->0], [00011->0], ..., [00000->1], [00001->1], ..., [10000->0], [10001->0], ..., [10000->1], ..., [11111->1]
+            */
+                List<Integer> countOfTransitionElement = Arrays.asList(
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                );
+                List<String> isTrueForNumberData = isTrueDataCache.get(number);
+
+                checkTransitionForComplexIndices(isTrueForNumberData, indValue, countOfTransitionElement);
+
+                matrix.getTransitionMatrix().add(Arrays.asList(
+                        countOfTransitionElement.get(0), countOfTransitionElement.get(1),
+                        countOfTransitionElement.get(2), countOfTransitionElement.get(3),
+                        countOfTransitionElement.get(4), countOfTransitionElement.get(5),
+                        countOfTransitionElement.get(6), countOfTransitionElement.get(7),
+                        countOfTransitionElement.get(8), countOfTransitionElement.get(9),
+                        countOfTransitionElement.get(10), countOfTransitionElement.get(11),
+                        countOfTransitionElement.get(12), countOfTransitionElement.get(13),
+                        countOfTransitionElement.get(14), countOfTransitionElement.get(15),
+                        countOfTransitionElement.get(16), countOfTransitionElement.get(17),
+                        countOfTransitionElement.get(18), countOfTransitionElement.get(19),
+                        countOfTransitionElement.get(20), countOfTransitionElement.get(21),
+                        countOfTransitionElement.get(22), countOfTransitionElement.get(23),
+                        countOfTransitionElement.get(24), countOfTransitionElement.get(25),
+                        countOfTransitionElement.get(26), countOfTransitionElement.get(27),
+                        countOfTransitionElement.get(28), countOfTransitionElement.get(29),
+                        countOfTransitionElement.get(30), countOfTransitionElement.get(31)
+                ));
+
+                matrix.getTransitionMatrix().add(Arrays.asList(
+                        countOfTransitionElement.get(32), countOfTransitionElement.get(33),
+                        countOfTransitionElement.get(34), countOfTransitionElement.get(35),
+                        countOfTransitionElement.get(36), countOfTransitionElement.get(37),
+                        countOfTransitionElement.get(38), countOfTransitionElement.get(39),
+                        countOfTransitionElement.get(40), countOfTransitionElement.get(41),
+                        countOfTransitionElement.get(42), countOfTransitionElement.get(43),
+                        countOfTransitionElement.get(44), countOfTransitionElement.get(45),
+                        countOfTransitionElement.get(46), countOfTransitionElement.get(47),
+                        countOfTransitionElement.get(48), countOfTransitionElement.get(49),
+                        countOfTransitionElement.get(50), countOfTransitionElement.get(51),
+                        countOfTransitionElement.get(52), countOfTransitionElement.get(53),
+                        countOfTransitionElement.get(54), countOfTransitionElement.get(55),
+                        countOfTransitionElement.get(56), countOfTransitionElement.get(57),
+                        countOfTransitionElement.get(58), countOfTransitionElement.get(59),
+                        countOfTransitionElement.get(60), countOfTransitionElement.get(61),
+                        countOfTransitionElement.get(62), countOfTransitionElement.get(63)
+
+                ));
+
+                if (matrix.getInformative() < I0_Y.allInformativeI0_Y.get(DB_TABLES.values()[number]) * betta / 100) {
+                    complexIndices.get(number).remove(alias);
+                }
+                transitionMatricesForComplexIndices.add(matrix);
+            }
         });
+        return resultMap;
+    }
+
+    private boolean objectsNotEquals(
+            Object first,
+            Object second,
+            Object third,
+            Object fourth,
+            Object five
+    ) {
+        return !first.equals(second) &&
+                !first.equals(third) &&
+                !first.equals(fourth) &&
+                !first.equals(five) &&
+                !second.equals(third) &&
+                !second.equals(fourth) &&
+                !second.equals(five) &&
+                !third.equals(fourth) &&
+                !third.equals(five) &&
+                !fourth.equals(five);
+    }
+
+    @Nullable
+    private String permutation(@NonNull String prefix, @NonNull String str) {
+        int n = str.length();
+        if (n == 0) return prefix;
+        else {
+            for (int i = 0; i < n; i++)
+                permutation(prefix + str.charAt(i), str.substring(0, i) + str.substring(i+1, n));
+        }
+        return null;
+    }
+
+    private boolean complexIndNotExist(Set<String> complexIndices, String... indices) {
+        for (int i1 = 0; i1 < 5; i1++) {
+            for (int i2 = 0; i2 < 5; i2++) {
+                if (i1 == i2) continue;
+                for (int i3 = 0; i3 < 5; i3++) {
+                    if (i1 == i3 || i2 == i3) continue;
+                    for (int i4 = 0; i4 < 5; i4++) {
+                        if (i1 == i4 || i2 == i4 || i3 == i4) continue;
+                        for (int i5 = 0; i5 < 5; i5++) {
+                            if (i1 == i5 || i2 == i5 || i3 == i5 || i4 == i5) continue;
+                            String complexInd = indices[i1] + "|" + indices[i2] + "|" + indices[i3] + "|" + indices[i4] + "|" + indices[i5];
+                            if (complexIndices.contains(complexInd)) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     /**
@@ -616,21 +933,53 @@ public class ImageRecognition {
                 String indValue = entry.getValue();
                 TransitionMatrixForComplexIndices matrix = new TransitionMatrixForComplexIndices(DB_TABLES.values()[number], alias);
             /*
-            Массив количества переходов элементов, где индексы идут в следующем соотвествии: [00->0], [01->0], [10->0], [11->0], [00->1], [01->1], [10->1], [11->1]
+            Массив количества переходов элементов, где индексы идут в следующем соотвествии:
+             [00000->0], [00001->0], [00010->0], [00011->0], ..., [00000->1], [00001->1], ..., [10000->0], [10001->0], ..., [10000->1], ..., [11111->1]
             */
-                List<Integer> countOfTransitionElement = Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0);
+                List<Integer> countOfTransitionElement = Arrays.asList(
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                );
                 List<String> isTrueForNumberData = isTrueDataCache.get(number);
 
                 checkTransitionForComplexIndices(isTrueForNumberData, indValue, countOfTransitionElement);
 
                 matrix.getTransitionMatrix().add(Arrays.asList(
                         countOfTransitionElement.get(0), countOfTransitionElement.get(1),
-                        countOfTransitionElement.get(2), countOfTransitionElement.get(3)
-                ));
+                        countOfTransitionElement.get(2), countOfTransitionElement.get(3),
+                        countOfTransitionElement.get(4), countOfTransitionElement.get(5),
+                        countOfTransitionElement.get(6), countOfTransitionElement.get(7),
+                        countOfTransitionElement.get(8), countOfTransitionElement.get(9),
+                        countOfTransitionElement.get(10), countOfTransitionElement.get(11),
+                        countOfTransitionElement.get(12), countOfTransitionElement.get(13),
+                        countOfTransitionElement.get(14), countOfTransitionElement.get(15),
+                        countOfTransitionElement.get(16), countOfTransitionElement.get(17),
+                        countOfTransitionElement.get(18), countOfTransitionElement.get(19),
+                        countOfTransitionElement.get(20), countOfTransitionElement.get(21),
+                        countOfTransitionElement.get(22), countOfTransitionElement.get(23),
+                        countOfTransitionElement.get(24), countOfTransitionElement.get(25),
+                        countOfTransitionElement.get(26), countOfTransitionElement.get(27),
+                        countOfTransitionElement.get(28), countOfTransitionElement.get(29),
+                        countOfTransitionElement.get(30), countOfTransitionElement.get(31)
+                        ));
 
                 matrix.getTransitionMatrix().add(Arrays.asList(
-                        countOfTransitionElement.get(4), countOfTransitionElement.get(5),
-                        countOfTransitionElement.get(6), countOfTransitionElement.get(7)
+                        countOfTransitionElement.get(32), countOfTransitionElement.get(33),
+                        countOfTransitionElement.get(34), countOfTransitionElement.get(35),
+                        countOfTransitionElement.get(36), countOfTransitionElement.get(37),
+                        countOfTransitionElement.get(38), countOfTransitionElement.get(39),
+                        countOfTransitionElement.get(40), countOfTransitionElement.get(41),
+                        countOfTransitionElement.get(42), countOfTransitionElement.get(43),
+                        countOfTransitionElement.get(44), countOfTransitionElement.get(45),
+                        countOfTransitionElement.get(46), countOfTransitionElement.get(47),
+                        countOfTransitionElement.get(48), countOfTransitionElement.get(49),
+                        countOfTransitionElement.get(50), countOfTransitionElement.get(51),
+                        countOfTransitionElement.get(52), countOfTransitionElement.get(53),
+                        countOfTransitionElement.get(54), countOfTransitionElement.get(55),
+                        countOfTransitionElement.get(56), countOfTransitionElement.get(57),
+                        countOfTransitionElement.get(58), countOfTransitionElement.get(59),
+                        countOfTransitionElement.get(60), countOfTransitionElement.get(61)
+
                 ));
 
                 if (matrix.getInformative() < I0_Y.allInformativeI0_Y.get(DB_TABLES.values()[number]) * betta / 100) {

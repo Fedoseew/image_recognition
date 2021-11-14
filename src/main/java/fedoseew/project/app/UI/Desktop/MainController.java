@@ -65,8 +65,10 @@ public class MainController {
     @FXML
     private TextField minMetric;
 
+    private ImageRecognition imageRecognition;
+
     @FXML
-    void initialize() {
+    void initialize() throws SQLException {
         createGrid();
         connectToDatabase();
         setListenerForGoButton();
@@ -75,6 +77,13 @@ public class MainController {
         alphaScroll.setValue(10d);
         bettaScroll.setValue(50d);
         gammaScroll.setValue(3d);
+        imageRecognition = new ImageRecognition();
+        imageRecognition.loadData(
+                (int) alphaScroll.getValue(),
+                (int) bettaScroll.getValue(),
+                (int) gammaScroll.getValue(),
+                Double.parseDouble(minMetric.getText())
+        );
     }
 
     private void createGrid() {
@@ -146,19 +155,20 @@ public class MainController {
 
     private void setListenerForGoButton() {
         go.setOnMouseClicked(click -> {
-            ImageRecognition imageRecognition = new ImageRecognition();
             double metric = 0.5;
             try {
                 metric = Double.parseDouble(minMetric.getText());
             } catch (NumberFormatException ignored) {
             }
             try {
-                Map<DB_TABLES, Integer> response = imageRecognition.recognition(parseImageToBinaryCode(), new Object[]{
-                        (int) alphaScroll.getValue(),
-                        (int) bettaScroll.getValue(),
-                        (int) gammaScroll.getValue(),
-                        metric
-                });
+                Map<DB_TABLES, Integer> response = imageRecognition.recognition(
+                        parseImageToBinaryCode(),
+                        new Object[] {
+                                (int) alphaScroll.getValue(),
+                                (int) bettaScroll.getValue(),
+                                (int) gammaScroll.getValue(),
+                                metric
+                        });
                 createResponseNotification(response);
                 clearAllCells();
             } catch (SQLException | IOException exception) {
