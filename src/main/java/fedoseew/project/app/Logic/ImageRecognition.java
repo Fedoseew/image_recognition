@@ -176,7 +176,7 @@ public class ImageRecognition {
         clustering(clusters, metrics, minMetric, informative);
 
         // Сложные признаки (key -> число, value -> (key -> alias ("Xi1|Xi2|Xi3|Xi4|Xi5), value - бинарный кортеж сложного признака)):
-        Map<Integer, Map<String, String>> complexIndices = new HashMap<>();
+        Map<Integer, Map<String, String>> complexIndices = new LinkedHashMap<>();
 
         // ФОрмирование и фильтрация сложных признаков по параметру betta:
         Map<Integer, List<TransitionMatrixForComplexIndices>> transitionMatricesForComplexIndices =
@@ -211,13 +211,19 @@ public class ImageRecognition {
                 )
         );
 
-        countOfTransition.forEach((number, mapOfTransitions) -> mapOfTransitions.forEach((numberOfObject, count) -> {
+        countOfTransition.forEach((number, mapOfTransitions) -> {
+            final int[] trueCountSum = {0};
+            final int[] falseCountSum = {0};
+            mapOfTransitions.forEach((numberOfObject, count) -> {
                 if (isTrueDataCache.get(number).get(numberOfObject).equals("TRUE")) {
-                   counts.get(number).set(0, Map.of("TRUE", count));
+                    trueCountSum[0] += count;
                 } else {
-                    counts.get(number).set(1, Map.of("FALSE", count));
+                    falseCountSum[0] += count;
                 }
-        }));
+            });
+            counts.get(number).set(0, Map.of("TRUE", trueCountSum[0]));
+            counts.get(number).set(1, Map.of("FALSE", falseCountSum[0]));
+        });
 
         Map<Integer, Integer> maxTrueCount = new LinkedHashMap<>(Map.of(0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0));
         Map<Integer, Integer> maxFalseCount = new LinkedHashMap<>(Map.of(0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0));
@@ -265,9 +271,9 @@ public class ImageRecognition {
             Map<Integer, List<String>> indicesNewSpace,
             Map<Integer, String> userSourceToNewSpace
     ) {
-        Map<Integer, Map<Integer, Integer>> countOfTransition = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> countOfTransition = new LinkedHashMap<>();
         userSourceToNewSpace.forEach((number, value) -> {
-            countOfTransition.put(number, new HashMap<>());
+            countOfTransition.put(number, new LinkedHashMap<>());
             List<String> list = indicesNewSpace.get(number);
             for (int ind = 0; ind < list.size(); ind++) {
                     AtomicInteger count = new AtomicInteger();
@@ -756,7 +762,7 @@ public class ImageRecognition {
         Map<Integer, List<TransitionMatrixForComplexIndices>> resultMap = new LinkedHashMap<>();
         clusters.forEach((number, clustersForNumber) -> {
             Set<String> complexIndicesForNumber = new HashSet<>();
-            complexIndices.put(number, new HashMap<>());
+            complexIndices.put(number, new LinkedHashMap<>());
             if (metrics.get(number).size() != 0) {
                 for (List<String> firstCluster : clustersForNumber) {
                     for (List<String> secondCluster : clustersForNumber) {
